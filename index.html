@@ -114,6 +114,10 @@ h2{
 </style>
 </head>
 
+
+
+
+
 <body>
 
 <h2>Ma Trận Random 5 Bit</h2>
@@ -125,96 +129,147 @@ h2{
 </audio>
 
 
+
+
+
+
+
 <script>
 
-const matrix=document.getElementById("matrix");
-const result=document.getElementById("result");
-const BIT_COUNT = 8; // đổi thành 10 nếu muốn
-
-
+const matrix = document.getElementById("matrix");
+const result = document.getElementById("result");
 const spinSound = document.getElementById("spinSound");
 
-spinSound.loop=true;
+const BIT_COUNT = 5;
+const SPIN_DURATION = 3000;
 
-for(let i=0;i<=9;i++){
-    let cell=document.createElement("div");
-    cell.className="cell";
-    cell.textContent=i;
-    cell.onclick=()=>spin(i);
+spinSound.loop = true;
+
+/* ===== TẠO MA TRẬN 0 → 9 ===== */
+for(let i = 0; i <= 9; i++){
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.textContent = i;
+    cell.addEventListener("click", () => spin(i));
     matrix.appendChild(cell);
 }
 
-function randomBits(){
-    const num = Math.floor(Math.random() * Math.pow(2, BIT_COUNT));
-    return num.toString(2).padStart(BIT_COUNT, "0");
+/* ===== HÀM SHUFFLE ===== */
+function shuffle(array){
+    for(let i = array.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
 }
 
-function spin(number){
-
-    result.innerHTML="";
-
-    spinSound.currentTime=0;
-    spinSound.currentTime = 0;
-spinSound.play().catch(()=>{});
 
 
-    let duration=3000;
-    let start=null;
 
-    let wrapper=document.createElement("div");
-    wrapper.className="result-wrapper";
-    result.appendChild(wrapper);
 
-    let numberBox=document.createElement("div");
-    numberBox.className="number-display";
-    numberBox.textContent=number;
-    wrapper.appendChild(numberBox);
 
-    let bitRow=document.createElement("div");
-    bitRow.className="result";
-    wrapper.appendChild(bitRow);
+/* ===== SINH BIT THEO SỐ BẤM ===== */
+function generateBits(number){
 
-    let bitBoxes=[];
-    for(let i=0;i<BIT_COUNT;i++){
+    // ==== DANH SÁCH TÙY CHỈNH ====
+    const zeroMajorityList = [9,4,0,2];      // 3 số 0, 2 số 1
+    const oneMajorityList  = [3,6,7,5,8,1];     // 3 số 1, 2 số 0
 
-        let b=document.createElement("div");
-        b.className="bitbox running";
-        bitRow.appendChild(b);
-        bitBoxes.push(b);
+    let bits = [];
+
+    if(zeroMajorityList.includes(number)){
+        bits = ["0","0","0","1","1"];
+    }
+    else if(oneMajorityList.includes(number)){
+        bits = ["1","1","1","0","0"];
+    }
+    else{
+        // số không nằm trong danh sách → random tự do
+        for(let i = 0; i < 5; i++){
+            bits.push(Math.random() > 0.5 ? "1" : "0");
+        }
+        return bits;
     }
 
-    function animate(timestamp){
-        if(!start) start=timestamp;
+    // shuffle vị trí
+    for(let i = bits.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [bits[i], bits[j]] = [bits[j], bits[i]];
+    }
 
-        let progress=timestamp-start;
-        let percent=progress/duration;
-        if(percent>1) percent=1;
-
-        let interval=20+(180*percent);
-
-        if(progress%interval<16){
-           let bits = randomBits();
-for(let i=0;i<BIT_COUNT;i++){
-    bitBoxes[i].textContent = bits[i];
+    return bits;
 }
+
+
+
+
+
+/* ===== HIỆU ỨNG QUAY ===== */
+function spin(number){
+
+    result.innerHTML = "";
+
+    spinSound.currentTime = 0;
+    spinSound.play().catch(()=>{});
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "result-wrapper";
+    result.appendChild(wrapper);
+
+    const numberBox = document.createElement("div");
+    numberBox.className = "number-display";
+    numberBox.textContent = number;
+    wrapper.appendChild(numberBox);
+
+    const bitRow = document.createElement("div");
+    bitRow.className = "result";
+    wrapper.appendChild(bitRow);
+
+    const bitBoxes = [];
+
+    for(let i = 0; i < BIT_COUNT; i++){
+        const box = document.createElement("div");
+        box.className = "bitbox running";
+        bitRow.appendChild(box);
+        bitBoxes.push(box);
+    }
+
+    let startTime = null;
+
+    function animate(timestamp){
+
+        if(!startTime) startTime = timestamp;
+
+        const progress = timestamp - startTime;
+        const percent = Math.min(progress / SPIN_DURATION, 1);
+
+        const interval = 30 + (200 * percent);
+
+        if(progress % interval < 20){
+            const bits = generateBits(number);
+            bitBoxes.forEach((box, index)=>{
+                box.textContent = bits[index];
+            });
         }
 
-        if(progress<duration){
+        if(progress < SPIN_DURATION){
             requestAnimationFrame(animate);
-        }else{
-            bitBoxes.forEach(b=>{
-                b.classList.remove("running");
-                b.classList.add("flash");
+        }
+        else{
+            bitBoxes.forEach(box=>{
+                box.classList.remove("running");
+                box.classList.add("flash");
             });
+
             spinSound.pause();
-            spinSound.currentTime=0;
+            spinSound.currentTime = 0;
         }
     }
 
     requestAnimationFrame(animate);
 }
-</script>
 
+</script>
 </body>
 </html>
 
