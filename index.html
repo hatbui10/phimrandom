@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Numeric Scanner Pro - Cell Edition</title>
+    <title>Numeric Pro - Merger & Scanner</title>
     <style>
         :root {
             --neon-color: #00f2ff;
@@ -26,7 +26,7 @@
             margin-left: 3px;  /* Rule: 3px sides */
             margin-right: 3px;
             width: 100%;
-            max-width: 600px;
+            max-width: 800px;
             background: var(--container-bg);
             padding: 15px;
             border: 1px solid #333;
@@ -34,11 +34,12 @@
             box-shadow: var(--border-glow);
         }
 
+        /* 6 ô nhập số */
         .slot-wrapper {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
             gap: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .slot {
@@ -66,6 +67,19 @@
             outline: none;
         }
 
+        /* Thống kê */
+        .stats-bar {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #111;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .stats-bar b { color: var(--neon-color); }
+
         .btn-group {
             display: flex;
             gap: 10px;
@@ -83,6 +97,7 @@
             text-transform: uppercase;
             font-size: 0.75rem;
             transition: 0.3s;
+            border-radius: 4px;
         }
 
         button:hover, label:hover {
@@ -90,54 +105,54 @@
             color: #000;
         }
 
+        /* Log tìm kiếm */
         #log-container {
-            height: 150px;
+            height: 120px;
             overflow-y: auto;
             border: 1px solid #333;
             background: #000;
             padding: 10px;
             margin-bottom: 15px;
+            font-size: 0.85rem;
         }
 
         .log-item {
-            padding: 8px;
+            padding: 6px;
             border-bottom: 1px solid #222;
             cursor: pointer;
-            font-size: 0.9rem;
         }
 
-        /* Vùng hiển thị file dạng ô */
+        /* Bảng hiển thị số trong file */
         #data-display {
             display: flex;
             flex-wrap: wrap;
-            gap: 4px;
+            gap: 2px;
             max-height: 400px;
             overflow-y: auto;
-            border-top: 1px solid #444;
-            padding-top: 15px;
+            border: 1px solid #222;
+            padding: 10px;
+            background: #000;
         }
 
         .data-cell {
-            width: 30px;
-            height: 30px;
+            width: 28px;
+            height: 28px;
             display: flex;
-border-radius: 5px;
             align-items: center;
             justify-content: center;
             background: #111;
             border: 1px solid #222;
             font-family: monospace;
-            font-size: 1rem;
-            color: #aaa;
+            font-size: 0.9rem;
+            color: #666;
+            border-radius: 3px;
         }
 
         .highlight {
             background: #ffff00 !important;
             color: #000 !important;
-            border-color: #fff !important;
-            box-shadow: 0 0 10px #ffff00;
             font-weight: bold;
-            z-index: 10;
+            box-shadow: 0 0 8px #ffff00;
         }
     </style>
 </head>
@@ -151,17 +166,24 @@ border-radius: 5px;
         <div class="slot" id="s3"></div>
         <div class="slot" id="s4"></div>
         <div class="slot">
-            <input type="number" id="input-slot" inputmode="numeric" pattern="[0-9]*">
+            <input type="number" id="input-slot" inputmode="numeric" pattern="[0-9]*" placeholder="?">
         </div>
     </div>
 
+    <div class="stats-bar">
+        <span>Tổng chữ số: <b id="count-total">0</b></span>
+        <span id="status-msg">Chưa có dữ liệu</span>
+    </div>
+
     <div class="btn-group">
-        <label for="file-upload">Upload +</label>
+        <label for="file-upload">Upload Cộng Dồn</label>
         <input type="file" id="file-upload" multiple hidden accept=".txt">
-        <button onclick="clearData()">Xóa Hết</button>
+        <button onclick="clearData()">Xóa Tất Cả</button>
+        <button onclick="exportData()">Xuất File Nối</button>
     </div>
 
     <div id="log-container"></div>
+
     <div id="data-display"></div>
 </div>
 
@@ -170,18 +192,29 @@ border-radius: 5px;
     const logContainer = document.getElementById('log-container');
     const dataDisplay = document.getElementById('data-display');
     const fileUpload = document.getElementById('file-upload');
+    const countTotal = document.getElementById('count-total');
+    const statusMsg = document.getElementById('status-msg');
     
     let slots = ["", "", "", "", ""];
     let masterData = localStorage.getItem('masterData') || "";
 
+    // Tự động focus và tải dữ liệu cũ
     window.onload = () => {
         inputSlot.focus();
-        if (masterData) renderDataCells();
+        if (masterData) {
+            renderDataCells();
+            updateStats("Đã khôi phục dữ liệu");
+        }
     };
 
-    document.addEventListener('click', () => inputSlot.focus());
+    // Click bất kỳ đâu cũng focus về ô nhập
+    document.addEventListener('click', (e) => {
+        if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'LABEL') {
+            inputSlot.focus();
+        }
+    });
 
-    // Nhập ô 6 -> Dịch trái
+    // Xử lý nhập ô 6 -> Dịch trái
     inputSlot.addEventListener('input', (e) => {
         const val = e.target.value.slice(-1);
         if (val >= '0' && val <= '9') {
@@ -197,74 +230,121 @@ border-radius: 5px;
         inputSlot.value = "";
     });
 
-    // Upload cộng dồn
+    // Xử lý Upload & Nối file (Lấy TOÀN BỘ số)
     fileUpload.addEventListener('change', async (e) => {
         let newContent = "";
-        for (let file of e.target.files) {
-            newContent += await file.text();
+        const files = e.target.files;
+        if (files.length === 0) return;
+
+        for (let file of files) {
+            const text = await file.text();
+            // CHỈ lấy chữ số, giữ nguyên mọi số tìm thấy
+            const matches = text.match(/\d/g);
+            if (matches) {
+                newContent += matches.join("");
+            }
         }
-        masterData += newContent.replace(/\s/g, ""); // Loại bỏ khoảng trắng để xử lý chuỗi thuần số
+        
+        masterData += newContent;
         localStorage.setItem('masterData', masterData);
         renderDataCells();
+        updateStats(`+${newContent.length} số mới`);
     });
 
-    // Vẽ mỗi số vào 1 ô
+    // Cập nhật thống kê số lượng
+    function updateStats(msg) {
+        countTotal.innerText = masterData.length.toLocaleString();
+        statusMsg.innerText = msg;
+    }
+
+    // Vẽ dữ liệu vào bảng lưới
     function renderDataCells() {
         dataDisplay.innerHTML = "";
         const chars = masterData.split("");
+        // Chỉ vẽ tối đa 5000 ô để tránh lag trình duyệt nếu file quá lớn
+        const displayLimit = 5000; 
+        
         chars.forEach((char, index) => {
-            const span = document.createElement('span');
-            span.className = 'data-cell';
-            span.id = `cell-${index}`;
-            span.innerText = char;
-            dataDisplay.appendChild(span);
+            if (index < displayLimit) {
+                const span = document.createElement('span');
+                span.className = 'data-cell';
+                span.id = `cell-${index}`;
+                span.innerText = char;
+                dataDisplay.appendChild(span);
+            }
         });
+
+        if (chars.length > displayLimit) {
+            const note = document.createElement('div');
+            note.style.width = "100%";
+            note.style.padding = "10px";
+            note.style.color = "#555";
+            note.innerText = `... và ${(chars.length - displayLimit).toLocaleString()} số khác (chỉ hiển thị 5000 số đầu để tránh lag)`;
+            dataDisplay.appendChild(note);
+        }
     }
 
-    // Tìm kiếm
+    // Tìm kiếm dãy 5 số
     function checkPattern() {
         const searchStr = slots.join("");
         if (searchStr.length < 5) return;
 
-        // Tìm tất cả vị trí xuất hiện
-        let index = masterData.indexOf(searchStr);
-        if (index !== -1) {
+        // Tìm tất cả vị trí (không chỉ vị trí đầu tiên)
+        let pos = masterData.indexOf(searchStr);
+        if (pos !== -1) {
             const timestamp = new Date().toLocaleTimeString();
             const logEntry = document.createElement('div');
             logEntry.className = 'log-item';
-            logEntry.innerHTML = `<span style="color:var(--neon-color)">[${timestamp}]</span> Khớp dãy: <b style="color:#fff">${searchStr}</b>`;
+            logEntry.innerHTML = `<span style="color:var(--neon-color)">[${timestamp}]</span> Tìm thấy: <b style="color:#fff">${searchStr}</b> tại vị trí ${pos}`;
             
-            // Khi bấm log -> Cuộn tới ô đầu tiên của dãy đó
-            logEntry.onclick = () => scrollToPattern(index, searchStr.length);
+            logEntry.onclick = () => scrollToPattern(pos, searchStr.length);
             logContainer.prepend(logEntry);
+            
+            // Hiệu ứng rung ô nhập khi tìm thấy
+            inputSlot.parentElement.style.borderColor = "yellow";
+            setTimeout(() => inputSlot.parentElement.style.borderColor = "#444", 500);
         }
     }
 
+    // Cuộn tới vị trí số trong lưới
     function scrollToPattern(startIndex, length) {
-        // Xóa highlight cũ
         document.querySelectorAll('.data-cell').forEach(el => el.classList.remove('highlight'));
 
-        // Highlight các ô mới
         for (let i = 0; i < length; i++) {
             const cell = document.getElementById(`cell-${startIndex + i}`);
             if (cell) cell.classList.add('highlight');
         }
 
-        // Cuộn tới
         const firstCell = document.getElementById(`cell-${startIndex}`);
         if (firstCell) {
             firstCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            alert("Số này nằm ở phần dữ liệu ẩn (ngoài giới hạn hiển thị 5000 ô)!");
         }
     }
 
+    // Xuất file đã nối
+    function exportData() {
+        if (!masterData) return alert("Không có dữ liệu để xuất!");
+        const blob = new Blob([masterData], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `file_noi_${Date.now()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // Xóa dữ liệu
     function clearData() {
-        if (confirm("Xóa toàn bộ dữ liệu?")) {
+        if (confirm("Xác nhận xóa sạch toàn bộ dữ liệu?")) {
             masterData = "";
             localStorage.removeItem('masterData');
             dataDisplay.innerHTML = "";
             logContainer.innerHTML = "";
             slots = ["", "", "", "", ""];
             for (let i = 0; i < 5; i++) document.getElementById(`s${i}`).innerText = "";
+            updateStats("Đã xóa sạch");
         }
     }
 </script>
